@@ -111,6 +111,8 @@ public class DruidController : Unit
 	bool facingRight = true;
 	bool climbLedges = true;
 	bool hanging = false;
+	bool canClimbLadder = false;
+	bool onLadder = false;
 	bool sprinting = false;
 	static bool grounded = false;
 	float maxWalkSpeed = 10f;
@@ -467,11 +469,11 @@ public class DruidController : Unit
 				{
 					if(handHold.onRightSideOfPlatform && Input.GetAxis("Horizontal") > 0)
 					{
-					Vector3 v = rigidbody.velocity;
-					v.y = 0;
-					rigidbody.velocity = v;
-					hanging = false;
-					rigidbody.useGravity = true;
+						Vector3 v = rigidbody.velocity;
+						v.y = 0;
+						rigidbody.velocity = v;
+						hanging = false;
+						rigidbody.useGravity = true;
 					}
 					else if(!handHold.onRightSideOfPlatform && Input.GetAxis("Horizontal") < 0)
 					{
@@ -483,6 +485,18 @@ public class DruidController : Unit
 					}
 				}
 			}
+		}
+
+		if(canClimbLadder && !onLadder && Input.GetAxis("Vertical") > 0)
+		{
+			hanging = true;
+			onLadder = true;
+			rigidbody.useGravity = false;
+		}
+		else if (onLadder && Input.GetButton("Jump"))
+		{
+			// Stop climbing the ladder if the player hits jump
+			stopHanging();
 		}
 
 		// Check if we're crouching
@@ -541,6 +555,10 @@ public class DruidController : Unit
 			PlatformGrabPoint grabPoint = (PlatformGrabPoint) entity.gameObject.GetComponent<PlatformGrabPoint>();
 			handHold = grabPoint;
 		}
+		if(entity.gameObject.tag == "Ladder")
+		{
+			canClimbLadder = true;
+		}
 	}
 
 
@@ -548,18 +566,30 @@ public class DruidController : Unit
 	{
 		if(entity.gameObject.tag == "Ledge Trigger")
 		{
-			// If we were hanging before, remove all momentum so we don't pop up over the ledge
-			if(hanging)
-			{
-				Vector3 v = rigidbody.velocity;
-				v.y = 1;
-				rigidbody.velocity = v;
-			}
-
-			hanging = false;
-			handHold = null;
-			rigidbody.useGravity = true;
+			stopHanging();
 		}
+		else if(entity.gameObject.tag == "Ladder")
+		{
+			stopHanging();
+		}
+	}
+
+
+	void stopHanging()
+	{
+		// If we were hanging before, remove all momentum so we don't pop up over the ledge
+		if(hanging)
+		{
+			Vector3 v = rigidbody.velocity;
+			v.y = 1;
+			rigidbody.velocity = v;
+		}
+
+		canClimbLadder = false;
+		onLadder = false;
+		hanging = false;
+		handHold = null;
+		rigidbody.useGravity = true;
 	}
 
 
