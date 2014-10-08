@@ -111,6 +111,7 @@ public class DruidController : Unit
 	bool facingRight = true;
 	bool climbLedges = true;
 	bool hanging = false;
+	bool wasHanging = false;
 	bool canClimbLadder = false;
 	bool onLadder = false;
 	bool sprinting = false;
@@ -120,7 +121,8 @@ public class DruidController : Unit
 	Vector2 horizontalMovement;
 	int jumpCooldown = 40;	// Must wait this many ticks before jumping again
 	int jumpCounter = 0;
-		
+	public bool wantsToJump = false;
+
 	private Form CurrentForm = Form.Human;
 
 	public float AttackDamage = 0.4f;
@@ -230,16 +232,6 @@ public class DruidController : Unit
 		{
 			//get the current state
 			AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
-
-			//if we're in "Run" mode, respond to input for jump, and set the Jump parameter accordingly. 
-			if(Input.GetButton("Jump")) 
-			{
-				animator.SetBool("Jump", true );
-			}
-			else
-			{
-				animator.SetBool("Jump", false);                
-			}
 			
 			if(Input.GetButton("Horizontal"))
 			{
@@ -270,46 +262,12 @@ public class DruidController : Unit
 		float horizontalMovement = rigidbody.velocity.x;
 		float verticalMovement = rigidbody.velocity.y;
 
-		if(grounded)
-		{
-			if(sprinting)
-			{
-				if(Mathf.Abs(horizontalMovement) > maxSprintSpeed)
-				{
-					//horizontalMovement = horizontalMovement.normalized;
-					horizontalMovement -= 0.1f;
-				}
-			}
-			else
-			{
-				if(Mathf.Abs(horizontalMovement) > maxWalkSpeed)
-				{
-					//horizontalMovement = horizontalMovement.normalized;
-					horizontalMovement -=0.1f;
-				}
-			}
-		}
-		else if (hanging)
-		{
-			// Don't stop vertical movement if we're hanging so we don't slide down
-			verticalMovement = 0;
-		}
-		
-		rigidbody.velocity = new Vector3(horizontalMovement, verticalMovement, 0);
-
 		// Applies friction from the ground, slowing the model on the X axis
 		if(grounded)
 		{
 			float temp1x = Mathf.SmoothDamp(rigidbody.velocity.x, 0, ref walkDeAccelerationVolx, walkDeAcceleration);
 
 			rigidbody.velocity = new Vector3 (temp1x,rigidbody.velocity.y, 0);
-		}
-		// Apply friction to slow process of moving up and down the ledge
-		else if (hanging)
-		{
-			float temp1y = Mathf.SmoothDamp(0, rigidbody.velocity.y, ref walkDeAccelerationVolx, walkDeAcceleration);
-			temp1y = Mathf.Min(temp1y, 5);
-			rigidbody.velocity = new Vector3 (0, temp1y, 0);
 		}
 		
 		
@@ -335,10 +293,12 @@ public class DruidController : Unit
 		}
 		// Add an upward Y force if jumping
 		float y = 0;
-		if(grounded && !hanging && Input.GetButton("Jump") && jumpCounter == 0)
+		if(grounded && !hanging && wantsToJump)
 		{
 			jumpCounter++;
 			yForce = jumpForce;
+			wantsToJump = false;
+			animator.SetBool("Jump", true);
 		}
 
 		// Sprint if on the ground and hitting sprint
@@ -354,7 +314,15 @@ public class DruidController : Unit
 		// Move up and down if hanging
 		if(hanging)
 		{
-			yForce = verticalInput * climbingSpeed;
+			if(wasHanging && verticalInput == 0)
+			{
+				// No input from player. Stop all ladder movement immediately
+				rigidbody.velocity = Vector3.zero;
+			}
+			else
+			{
+				yForce = verticalInput * climbingSpeed;
+			}
 		}
 
 		// Check if the player wants to move left or right
@@ -413,19 +381,22 @@ public class DruidController : Unit
 		// Player is on the ground
 		if (grounded)
 		{
-			rigidbody.AddRelativeForce(horizontalInput * xForce * Time.deltaTime, yForce, 0);//Input.GetAxis("Vertical") * walkAcceleration * Time.deltaTime);
+			rigidbody.AddForce(horizontalInput * xForce, yForce, 0);//Input.GetAxis("Vertical") * walkAcceleration * Time.deltaTime);
 		}
 		// Player is hanging on a ledge
 		else if(hanging)
 		{
-			rigidbody.AddRelativeForce(0, yForce * Time.deltaTime, 0);
+			//rigidbody.AddForce(0, yForce, 0);
+			//rigidbody.AddForce(0, yForce * -0.5f, 0);
+			rigidbody.velocity = new Vector3(0, verticalInput * climbingSpeed, 0);
 		}
 		// Player is in the air
 		else
 		{
-
-			rigidbody.AddRelativeForce(horizontalInput * xForce * AirControlRatio * Time.deltaTime, 0, 0);//Input.GetAxis("Vertical") * walkAcceleration * walkAccelAirRatio* Time.deltaTime);        
+			rigidbody.AddForce(horizontalInput * xForce * AirControlRatio, 0, 0);//Input.GetAxis("Vertical") * walkAcceleration * walkAccelAirRatio* Time.deltaTime);        
 		}
+
+		wasHanging = hanging;
 	}
 	
 	
@@ -442,11 +413,7 @@ public class DruidController : Unit
 			{
 				if(!hanging)
 				{
-					Debug.Log("right");
-					hanging = true;
-					rigidbody.useGravity = false;
-					rigidbody.velocity = Vector3.zero;
-					//rigidbody.isKinematic = false;
+					startHanging();
 				}
 			}
 			// We're on the left side of the platform while pushing right
@@ -454,46 +421,36 @@ public class DruidController : Unit
 			{
 				if(!hanging)
 				{
-					Debug.Log("left");
-					hanging = true;
-					rigidbody.useGravity = false;
-					rigidbody.velocity = Vector3.zero;
+					startHanging();
 				}
 			}
-			// No input, stop hanging
 			else
 			{
 				// Check if we should drop off the ledge
 				// Zero out the Y velocity so the character doesn't fly up the ledge when they let go
 				if(hanging)
 				{
+					// Press away from hand hold
 					if(handHold.onRightSideOfPlatform && Input.GetAxis("Horizontal") > 0)
 					{
-						Vector3 v = rigidbody.velocity;
-						v.y = 0;
-						rigidbody.velocity = v;
-						hanging = false;
-						rigidbody.useGravity = true;
+						stopHanging();
 					}
 					else if(!handHold.onRightSideOfPlatform && Input.GetAxis("Horizontal") < 0)
 					{
-						Vector3 v = rigidbody.velocity;
-						v.y = 0;
-						rigidbody.velocity = v;
-						hanging = false;
-						rigidbody.useGravity = true;
+						stopHanging();
 					}
 				}
 			}
 		}
 
-		if(canClimbLadder && !onLadder && Input.GetAxis("Vertical") > 0)
+		if(!hanging && canClimbLadder && !onLadder && Input.GetAxis("Vertical") > 0)
 		{
-			hanging = true;
+			startHanging();
 			onLadder = true;
-			rigidbody.useGravity = false;
 		}
-		else if (onLadder && Input.GetButton("Jump"))
+
+		// Stop hanging if the player is holding down the jump button
+		if (hanging && Input.GetButton("Jump"))
 		{
 			// Stop climbing the ladder if the player hits jump
 			stopHanging();
@@ -515,6 +472,15 @@ public class DruidController : Unit
 			crouch();
 		}
 
+
+		if(Input.GetButtonDown("Jump"))
+		{
+			wantsToJump = true;
+		}
+		else
+		{
+			wantsToJump = false;
+		}
 		// Check for transformations
 		if(Input.GetButtonDown("TransformHuman"))// && CurrentForm != Form.Human)
 		{
@@ -571,7 +537,17 @@ public class DruidController : Unit
 		else if(entity.gameObject.tag == "Ladder")
 		{
 			stopHanging();
+			canClimbLadder = false;
 		}
+	}
+
+
+	void startHanging()
+	{
+		hanging = true;
+		rigidbody.useGravity = false;
+		rigidbody.velocity = Vector3.zero;
+		this.gameObject.layer = 9;
 	}
 
 
@@ -584,8 +560,7 @@ public class DruidController : Unit
 			v.y = 1;
 			rigidbody.velocity = v;
 		}
-
-		canClimbLadder = false;
+		this.gameObject.layer = 8;
 		onLadder = false;
 		hanging = false;
 		handHold = null;
@@ -599,6 +574,11 @@ public class DruidController : Unit
 		{
 			if (Vector3.Angle(contact.normal, Vector3.up) < maxSlope)
 			{
+				if(!grounded)
+				{
+					// Play land animation if we previously weren't on the ground
+					animator.SetBool("Jump", false);
+				}
 				canJump = true;
 				grounded = true;
 			}
