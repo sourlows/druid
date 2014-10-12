@@ -105,6 +105,8 @@ public class DruidController : Unit
 	public float airControlXThreshold = 10f;	// If exceeding this amount while in the air, we cannot increase our X velocity
 	public float NoKeySlowFactor = 3;
 
+	public float AttackDamage = 0.4f;
+
 	float walkDeAccelerationVolx;
 	float walkDeAccelerationVolz;
 	bool canJump = false;
@@ -121,11 +123,9 @@ public class DruidController : Unit
 	Vector2 horizontalMovement;
 	int jumpCooldown = 40;	// Must wait this many ticks before jumping again
 	int jumpCounter = 0;
-	public bool wantsToJump = false;
+	bool wantsToJump = false;
 
 	private Form CurrentForm = Form.Human;
-
-	public float AttackDamage = 0.4f;
 
 	public Vector2 Size = new Vector2(0.35f, 2);	// Size is radius, then height
 	public Vector2 CrouchedSize = new Vector2(1, 1);
@@ -397,6 +397,7 @@ public class DruidController : Unit
 		}
 
 		wasHanging = hanging;
+		wantsToJump = false;
 	}
 	
 	
@@ -477,10 +478,7 @@ public class DruidController : Unit
 		{
 			wantsToJump = true;
 		}
-		else
-		{
-			wantsToJump = false;
-		}
+
 		// Check for transformations
 		if(Input.GetButtonDown("TransformHuman"))// && CurrentForm != Form.Human)
 		{
@@ -565,6 +563,12 @@ public class DruidController : Unit
 		hanging = false;
 		handHold = null;
 		rigidbody.useGravity = true;
+	}
+
+
+	void onCollisionEnter(Collision collision)
+	{
+
 	}
 
 
