@@ -235,20 +235,20 @@ public class DruidController : Unit
 			
 			if(Input.GetButton("Horizontal"))
 			{
-				animator.SetBool("Walk", true);
+				animator.SetBool("Running", true);
 			}
 			else
 			{
-				animator.SetBool("Walk", false);
+				animator.SetBool("Running", false);
 			}
 			
 			if(Input.GetButton("Sprint"))
 			{
-				animator.SetBool("Run", true);
+				animator.SetBool("Sprinting", true);
 			}
 			else
 			{
-				animator.SetBool("Run", false);
+				animator.SetBool("Sprinting", false);
 			}
 		}
 	}
@@ -298,7 +298,7 @@ public class DruidController : Unit
 			jumpCounter++;
 			yForce = jumpForce;
 			wantsToJump = false;
-			animator.SetBool("Jump", true);
+			animator.SetBool("Jumping", true);
 		}
 
 		// Sprint if on the ground and hitting sprint
@@ -581,7 +581,7 @@ public class DruidController : Unit
 				if(!grounded)
 				{
 					// Play land animation if we previously weren't on the ground
-					animator.SetBool("Jump", false);
+					animator.SetBool("Jumping", false);
 				}
 				canJump = true;
 				grounded = true;
